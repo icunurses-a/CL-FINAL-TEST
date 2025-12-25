@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clinical Laboratory Mastery - Dev Mode</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Babel for JSX transformation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Import Map for React & Lucide -->
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "lucide-react": "https://esm.sh/lucide-react@0.263.1"
+        }
+    }
+    </script>
+
+    <style>
+        /* --- Maniacal Developer Theme & Animations --- */
+        body {
+            background-color: #020617; /* Slate 950 */
+            color: #4ade80; /* Green 400 */
+            font-family: 'Courier New', Courier, monospace; /* Maniacal Monospace */
+        }
+
+        .perspective { perspective: 1000px; }
+        .preserve-3d { transform-style: preserve-3d; }
+        .backface-hidden { backface-visibility: hidden; }
+        .rotate-y-180 { transform: rotateY(180deg); }
+        
+        /* CRT/Terminal Glow Effect */
+        .glow-text { text-shadow: 0 0 5px rgba(74, 222, 128, 0.7); }
+        .glow-box { box-shadow: 0 0 10px rgba(74, 222, 128, 0.3); }
+        .glow-border { border-color: #4ade80; box-shadow: 0 0 5px rgba(74, 222, 128, 0.5); }
+
+        @keyframes bounce-slow {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        .animate-bounce-slow { animation: bounce-slow 3s infinite; }
+        
+        .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        .animate-slide-up { animation: slideUp 0.5s ease-out forwards; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .animate-slide-in-right { animation: slideInRight 0.5s ease-out forwards; }
+        @keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        
+        /* Flash Animation */
+        @keyframes popIn {
+            0% { transform: scale(0) rotate(-45deg); opacity: 0; }
+            60% { transform: scale(1.2) rotate(10deg); opacity: 1; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        .animate-pop-in { animation: popIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+        /* Floating Background Elements */
+        @keyframes float-up {
+            0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+            10% { opacity: 0.5; }
+            90% { opacity: 0.5; }
+            100% { transform: translateY(-10vh) rotate(360deg); opacity: 0; }
+        }
+        .animate-float-up { animation: float-up linear infinite; }
+
+        /* Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #0f172a; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #22c55e; border-radius: 2px; border: 1px solid #000; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #4ade80; }
+    </style>
+</head>
+<body class="overflow-x-hidden selection:bg-green-900 selection:text-white">
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useRef, useCallback } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { 
+            Brain, Zap, Clock, Trophy, BookOpen, Activity, AlertCircle, 
+            CheckCircle, XCircle, Settings, Volume2, VolumeX, ArrowRight, 
+            RotateCw, FileText, HeartPulse, Home, LogOut, Flag, Star, 
+            Award, Flame, Shield, TrendingUp, Lock, Unlock, Shuffle, Plus, Terminal, Code
+        } from 'lucide-react';
+
+        // --- SOUND UTILITIES ---
+        const playSound = (type) => {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                if (type === 'correct') {
+                    osc.type = 'square'; // 8-bit sound
+                    osc.frequency.setValueAtTime(440, ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.1);
+                    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.3);
+                } else if (type === 'wrong') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(150, ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.2);
+                    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.4);
+                } else if (type === 'click') {
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(1200, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.02, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.03);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.03);
+                } else if (type === 'win') {
+                    osc.type = 'triangle';
+                    // Arpeggio
+                    [440, 554, 659, 880].forEach((freq, i) => {
+                        const o = ctx.createOscillator();
+                        const g = ctx.createGain();
+                        o.type = 'square';
+                        o.connect(g);
+                        g.connect(ctx.destination);
+                        o.frequency.value = freq;
+                        g.gain.setValueAtTime(0.05, ctx.currentTime + i * 0.1);
+                        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.1 + 0.2);
+                        o.start(ctx.currentTime + i * 0.1);
+                        o.stop(ctx.currentTime + i * 0.1 + 0.2);
+                    });
+                } else if (type === 'badge') {
+                    osc.type = 'sine';
+                    [800, 1200].forEach((freq, i) => {
+                        const o = ctx.createOscillator();
+                        const g = ctx.createGain();
+                        o.connect(g);
+                        g.connect(ctx.destination);
+                        o.frequency.value = freq;
+                        g.gain.setValueAtTime(0.05, ctx.currentTime + i * 0.15);
+                        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.15 + 0.3);
+                        o.start(ctx.currentTime + i * 0.15);
+                        o.stop(ctx.currentTime + i * 0.15 + 0.3);
+                    });
+                } else if (type === 'shuffle') {
+                     osc.type = 'sawtooth';
+                     osc.frequency.setValueAtTime(200, ctx.currentTime);
+                     osc.frequency.linearRampToValueAtTime(800, ctx.currentTime + 0.1);
+                     gain.gain.setValueAtTime(0.05, ctx.currentTime);
+                     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+                     osc.start();
+                     osc.stop(ctx.currentTime + 0.1);
+                }
+            } catch (e) {
+                console.error("Audio error", e);
+            }
+        };
+
+        // --- BACKGROUND COMPONENT ---
+        const InteractiveBackground = () => {
+            const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+            useEffect(() => {
+                const handleMouseMove = (e) => {
+                    const x = (e.clientX / window.innerWidth) * 2 - 1;
+                    const y = (e.clientY / window.innerHeight) * 2 - 1;
+                    setMousePos({ x, y });
+                };
+                window.addEventListener('mousemove', handleMouseMove);
+                return () => window.removeEventListener('mousemove', handleMouseMove);
+            }, []);
+
+            // Binary/Code rain effect particles
+            const particles = Array.from({ length: 20 }).map((_, i) => ({
+                id: i,
+                left: `${Math.random() * 100}%`,
+                animationDuration: `${10 + Math.random() * 20}s`,
+                delay: `${Math.random() * 10}s`,
+                content: Math.random() > 0.5 ? '1' : '0',
+                size: Math.random() * 14 + 10,
+            }));
+
+            return (
+                <div className="fixed inset-0 -z-50 overflow-hidden pointer-events-none bg-black">
+                    {/* Matrix-like Grid */}
+                    <div className="absolute inset-0 bg-[linear-gradient(rgba(0,255,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,0,0.03)_1px,transparent_1px)] bg-[size:20px_20px]"></div>
+                    
+                    {/* Floating Glows */}
+                    <div 
+                        className="absolute top-1/4 left-1/4 w-96 h-96 bg-green-500/10 rounded-full blur-[100px] transition-transform duration-1000 ease-out"
+                        style={{ transform: `translate(${mousePos.x * 30}px, ${mousePos.y * 30}px)` }}
+                    ></div>
+                    <div 
+                        className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-[100px] transition-transform duration-1000 ease-out"
+                        style={{ transform: `translate(${mousePos.x * -30}px, ${mousePos.y * -30}px)` }}
+                    ></div>
+
+                    {/* Code Particles */}
+                    {particles.map(p => (
+                        <div 
+                            key={p.id}
+                            className="absolute bottom-[-50px] opacity-0 animate-float-up text-green-500/30 font-mono font-bold"
+                            style={{
+                                left: p.left,
+                                fontSize: `${p.size}px`,
+                                animationDuration: p.animationDuration,
+                                animationDelay: p.delay,
+                                transform: `translateX(${mousePos.x * (p.id % 2 === 0 ? 15 : -15)}px)`
+                            }}
+                        >
+                            {p.content}
+                        </div>
+                    ))}
+                </div>
+            );
+        };
+
+        // --- GAMIFICATION CONSTANTS ---
+        const BADGES = [
+            { id: 'first_step', name: 'Hello World', icon: <Terminal className="w-6 h-6"/>, description: 'Complete your first quiz', xp: 50 },
+            { id: 'streak_3', name: 'Compiler', icon: <Flame className="w-6 h-6"/>, description: 'Get 3 correct answers in a row', xp: 100 },
+            { id: 'streak_5', name: 'Overclocked', icon: <Zap className="w-6 h-6"/>, description: 'Get 5 correct answers in a row', xp: 200 },
+            { id: 'speedster', name: 'Low Latency', icon: <Clock className="w-6 h-6"/>, description: 'Answer correctly in under 5 seconds', xp: 75 },
+            { id: 'perfectionist', name: 'Zero Bugs', icon: <Star className="w-6 h-6"/>, description: 'Score 100% on a quiz (min 5 Qs)', xp: 500 },
+            { id: 'scholar', name: 'Docs Reader', icon: <BookOpen className="w-6 h-6"/>, description: 'Review 10 Flashcards', xp: 150 },
+            { id: 'master', name: 'Full Stack Master', icon: <Trophy className="w-6 h-6"/>, description: 'Reach Level 5', xp: 1000 }
+        ];
+
+        const RANKS = [
+            { level: 1, title: "Script Kiddie", minXP: 0 },
+            { level: 2, title: "Junior Dev", minXP: 500 },
+            { level: 3, title: "SysAdmin", minXP: 1500 },
+            { level: 4, title: "Engineer", minXP: 3000 },
+            { level: 5, title: "Architect", minXP: 6000 },
+            { level: 6, title: "Tech Lead", minXP: 10000 },
+        ];
+
+        // --- DATA CONTENT (FROM CLS.TXT) ---
+        const FULL_QUESTION_BANK = [
+            // Subject 1: Immune System
+            { id: 1, question: "Which system is responsible for protecting the body against infections and foreign substances?", options: ["Respiratory System", "Immune System", "Circulatory System", "Nervous System"], correct: 1, rationale: "The Immune System defends the body against pathogens." },
+            { id: 2, question: "Which branch of the immune system is present at birth?", options: ["Innate Immune System", "Adaptive Immune System", "Acquired Immune System", "Humoral Immune System"], correct: 0, rationale: "Innate immunity is present at birth." },
+            { id: 3, question: "Which of the following is considered a component of the First Line of Defense?", options: ["Inflammation", "Antibodies", "Intact Skin", "T-Cells"], correct: 2, rationale: "Intact skin is a physical barrier." },
+            { id: 4, question: "Which cells are collectively known as phagocytes?", options: ["Basophils and Eosinophils", "Neutrophils and Macrophages", "T-Cells and B-Cells", "Natural Killer Cells and Plasma Cells"], correct: 1, rationale: "Neutrophils and Macrophages engulf pathogens." },
+            { id: 5, question: "Which T-cells coordinate immune responses by releasing cytokines?", options: ["Cytotoxic T cells (CD8+)", "Helper T cells (CD4+)", "Memory T cells", "Suppressor T cells"], correct: 1, rationale: "Helper T cells (CD4+) coordinate the response." },
+            { id: 6, question: "Which type of immunity is acquired because of prior experience with a foreign substance?", options: ["Innate", "Natural", "Adaptive", "Non-specific"], correct: 2, rationale: "Adaptive immunity develops after exposure." },
+            { id: 7, question: "What is the function of B-cells?", options: ["Engulf bacteria", "Produce antibodies", "Release histamine", "Destroy virus-infected cells directly"], correct: 1, rationale: "B-cells produce antibodies." },
+            { id: 8, question: "Which antibody is the most abundant in the blood and crosses the placenta?", options: ["IgA", "IgM", "IgG", "IgE"], correct: 2, rationale: "IgG is abundant and crosses the placenta." },
+            { id: 9, question: "Which antibody is found primarily in mucus, saliva, and tears?", options: ["IgA", "IgG", "IgD", "IgM"], correct: 0, rationale: "IgA is found in secretions." },
+            { id: 10, question: "Which antibody is the first responder to an initial infection?", options: ["IgG", "IgM", "IgE", "IgA"], correct: 1, rationale: "IgM is the first antibody produced." },
+            { id: 11, question: "Which antibody is associated with allergic reactions and parasitic infections?", options: ["IgD", "IgG", "IgE", "IgM"], correct: 2, rationale: "IgE mediates allergies and parasitic responses." },
+            { id: 12, question: "Which antibody functions mainly as a B-cell receptor?", options: ["IgA", "IgD", "IgG", "IgE"], correct: 1, rationale: "IgD functions as a B-cell receptor." },
+            { id: 13, question: "What is the process called where antibodies mark pathogens for destruction by other cells?", options: ["Neutralization", "Agglutination", "Opsonization", "Lysis"], correct: 2, rationale: "Opsonization marks pathogens." },
+            { id: 14, question: "Which type of adaptive immunity involves antibodies passing from mother to fetus?", options: ["Active Naturally Acquired", "Active Artificially Acquired", "Passive Naturally Acquired", "Passive Artificially Acquired"], correct: 2, rationale: "Passive Naturally Acquired immunity is maternal transfer." },
+            { id: 15, question: "Vaccination is an example of which type of immunity?", options: ["Passive Natural", "Active Artificial", "Passive Artificial", "Active Natural"], correct: 1, rationale: "Vaccines provide Active Artificial immunity." },
+            { id: 16, question: "How long does the primary immune response take to produce antibodies?", options: ["1-2 days", "10-14 days", "4-6 weeks", "24 hours"], correct: 1, rationale: "Primary response takes about 10-14 days." },
+            { id: 17, question: "Which response produces a larger quantity of antibodies due to memory cells?", options: ["Primary Response", "Secondary Response", "Innate Response", "Passive Response"], correct: 1, rationale: "Secondary response is faster and stronger." },
+            { id: 18, question: "Type I hypersensitivity reactions (allergies) are mediated by which immunoglobulin?", options: ["IgG", "IgM", "IgE", "IgA"], correct: 2, rationale: "IgE mediates Type I hypersensitivity." },
+            { id: 19, question: "Which virus causes Acquired Immune Deficiency Syndrome (AIDS)?", options: ["HPV", "HIV", "Influenza", "Varicella"], correct: 1, rationale: "HIV causes AIDS." },
+            { id: 20, question: "HIV primarily infects which type of cells?", options: ["B-cells", "Neutrophils", "CD4+ T cells", "Platelets"], correct: 2, rationale: "HIV targets CD4+ T cells." },
+            { id: 21, question: "Which autoimmune disease involves inflammation of joints and surrounding tissues?", options: ["Rheumatoid Arthritis", "Type 1 Diabetes", "Systemic Lupus Erythematosus", "Multiple Sclerosis"], correct: 0, rationale: "Rheumatoid Arthritis affects joints." },
+            { id: 22, question: "What is the 'Butterfly rash' associated with?", options: ["Rheumatoid Arthritis", "Systemic Lupus Erythematosus (SLE)", "Reactive Arthritis", "Diabetes"], correct: 1, rationale: "Butterfly rash is a hallmark of SLE." },
+            { id: 23, question: "Type 1 Diabetes is caused by the destruction of:", options: ["Liver cells", "Insulin-producing cells in the pancreas", "Kidney nephrons", "Joint cartilage"], correct: 1, rationale: "Beta cells in the pancreas are destroyed." },
+            { id: 24, question: "Which cells release histamine?", options: ["Macrophages", "Mast cells and Basophils", "T-cells", "Dendritic cells"], correct: 1, rationale: "Mast cells and Basophils release histamine." },
+            { id: 25, question: "The second line of defense includes all EXCEPT:", options: ["Inflammation", "Fever", "Antibodies", "Phagocytes"], correct: 2, rationale: "Antibodies are part of the third line (adaptive)." },
+            { id: 26, question: "What enzyme-containing structure destroys pathogens inside a phagocyte?", options: ["Ribosome", "Phagolysosome", "Nucleus", "Mitochondria"], correct: 1, rationale: "The phagolysosome contains enzymes." },
+            { id: 27, question: "What is the main function of Cytotoxic T cells (CD8+)?", options: ["Produce antibodies", "Release histamine", "Destroy virus-infected or cancerous cells", "Coordinate the immune response"], correct: 2, rationale: "CD8+ cells kill infected cells." },
+            { id: 28, question: "Antihistamines are used to treat:", options: ["Viral infections", "Allergies", "Bacterial infections", "Autoimmune diseases"], correct: 1, rationale: "Antihistamines treat allergies." },
+            { id: 29, question: "Which stem cell gives rise to Lymphocytes?", options: ["Myeloid Progenitor", "Lymphoid Stem Cell", "Erythroblast", "Megakaryocyte"], correct: 1, rationale: "Lymphoid Stem Cells produce lymphocytes." },
+            { id: 30, question: "Which of the following is NOT a sign of the innate immune response?", options: ["Fever", "Inflammation", "Memory cell production", "Phagocytosis"], correct: 2, rationale: "Memory cells are adaptive, not innate." },
+
+            // Subject 2: Immunoassay
+            { id: 31, question: "What is an immunoassay?", options: ["A test to count blood cells", "A chemical test using antibody-antigen reactions", "A genetic sequencing test", "A bacterial culture test"], correct: 1, rationale: "Immunoassays use Ag-Ab reactions." },
+            { id: 32, question: "What forms when an antibody binds to a specific antigen?", options: ["Immune Complex", "Enzyme substrate", "Lipid bilayer", "Protein chain"], correct: 0, rationale: "Antigen-Antibody complex." },
+            { id: 33, question: "Monoclonal antibodies bind to:", options: ["Multiple sites on an antigen", "One specific antigenic site (epitope)", "Any foreign protein", "Non-specific receptors"], correct: 1, rationale: "Monoclonal Abs are specific to one epitope." },
+            { id: 34, question: "Which antibodies are cheaper to produce but less specific?", options: ["Monoclonal", "Polyclonal", "Hybridoma", "Synthetic"], correct: 1, rationale: "Polyclonal are cheaper but less specific." },
+            { id: 35, question: "What does ELISA stand for?", options: ["Enzyme-Linked Immune System Assessment", "Enzyme-Linked Immunosorbent Assay", "Enzyme-Loop Immuno-Sorbent Antibody", "Electronic Light Immuno-System Analysis"], correct: 1, rationale: "Enzyme-Linked Immunosorbent Assay." },
+            { id: 36, question: "In ELISA, what is measured to determine antigen concentration?", options: ["Radioactivity", "Color intensity", "Light emission", "Precipitate weight"], correct: 1, rationale: "Color intensity (optical density)." },
+            { id: 37, question: "In Chemiluminescence Immunoassay (CHLIA), the label emits:", options: ["Color", "Light", "Heat", "Sound"], correct: 1, rationale: "CHLIA emits light." },
+            { id: 38, question: "Which instrument measures the light intensity in CHLIA?", options: ["Spectrophotometer", "Luminometer", "Microscope", "Thermometer"], correct: 1, rationale: "A Luminometer measures light." },
+            { id: 39, question: "In a Sandwich Assay, the antigen is bound between:", options: ["Two antigens", "A capture antibody and a detection antibody", "An enzyme and a substrate", "A solid surface and a dye"], correct: 1, rationale: "Sandwiched between two antibodies." },
+            { id: 40, question: "Which assay type is commonly used for small molecules with only one binding site?", options: ["Sandwich Assay", "Competitive Assay", "Direct ELISA", "Western Blot"], correct: 1, rationale: "Competitive assays are used for small molecules." },
+            { id: 41, question: "In a Competitive Assay, the signal strength is:", options: ["Directly proportional", "Inversely proportional", "Unrelated", "Equal to control"], correct: 1, rationale: "Signal is inversely proportional to analyte." },
+            { id: 42, question: "What is the 'Capture Antibody' attached to in a Sandwich ELISA?", options: ["The detection enzyme", "A solid surface", "The patient sample", "The substrate"], correct: 1, rationale: "Capture Ab is on the solid surface." },
+            { id: 43, question: "Immunoassays can detect antigens in:", options: ["High concentrations only", "Extremely low concentrations", "Solid tissues only", "Bacterial cultures only"], correct: 1, rationale: "They are highly sensitive." },
+            { id: 44, question: "Which of the following is an application of immunoassays?", options: ["Hormone analysis", "Disease diagnosis", "Drug testing", "All of the above"], correct: 3, rationale: "Used for all these applications." },
+            { id: 45, question: "What is the function of the substrate in an ELISA?", options: ["Bind antigen", "React with enzyme to produce color", "Wash away proteins", "Stop reaction"], correct: 1, rationale: "Substrate produces the color signal." },
+            { id: 46, question: "Which antibodies provide high specificity and reproducibility?", options: ["Polyclonal", "Monoclonal", "Autoantibodies", "Cross-reacting antibodies"], correct: 1, rationale: "Monoclonal antibodies." },
+            { id: 47, question: "What is the 'Analyte' in an immunoassay?", options: ["Enzyme", "Antibody", "Substance being measured", "Buffer"], correct: 2, rationale: "Analyte is the target substance." },
+            { id: 48, question: "If a patient sample has a high concentration of antigen in a Sandwich ELISA, the color intensity will be:", options: ["Low", "High", "Zero", "Colorless"], correct: 1, rationale: "High antigen = High color (Directly proportional)." },
+            { id: 49, question: "Which test is used for autoimmune antibody detection (e.g., ANA)?", options: ["CBC", "Immunoassay", "PCR", "Electrophoresis"], correct: 1, rationale: "ANA is detected via immunoassay." },
+            { id: 50, question: "Cortisol and drug levels are often tested using which method?", options: ["Sandwich Assay", "Competitive Assay", "Agglutination", "Precipitation"], correct: 1, rationale: "Competitive assays." },
+            { id: 51, question: "The part of the antigen that the antibody binds to is called the:", options: ["Paratope", "Epitope", "Isotype", "Haptoglobin"], correct: 1, rationale: "Epitope." },
+            { id: 52, question: "What happens if the 'Wash' step is skipped in ELISA?", options: ["More accurate", "False positives (background noise)", "No color", "Plate cracks"], correct: 1, rationale: "Unbound reagents cause false positives." },
+            { id: 53, question: "CHLIA is known for being:", options: ["Slow", "Highly sensitive and rapid", "Only qualitative", "Manual only"], correct: 1, rationale: "CHLIA is sensitive and rapid." },
+            { id: 54, question: "What does the 'Detection Antibody' usually carry in a Sandwich ELISA?", options: ["Antigen", "Enzyme or label", "Solid phase", "Patient sample"], correct: 1, rationale: "Carries the enzyme/label." },
+            { id: 55, question: "Which of the following is NOT a component of blood plasma?", options: ["Water", "Albumin", "Platelets", "Electrolytes"], correct: 2, rationale: "Platelets are formed elements, not plasma." },
+            { id: 56, question: "What is the first step in a Sandwich ELISA?", options: ["Substrate", "Capture antibody fixed to surface", "Detection antibody", "Stop solution"], correct: 1, rationale: "Capture Ab must be on the surface." },
+            { id: 57, question: "A qualitative ELISA result provides:", options: ["Exact number", "Positive or Negative result", "Kinetics", "DNA sequence"], correct: 1, rationale: "Qualitative means Pos/Neg." },
+            { id: 58, question: "Which protein is the most abundant in plasma?", options: ["Fibrinogen", "Albumin", "Globulin", "Hemoglobin"], correct: 1, rationale: "Albumin." },
+            { id: 59, question: "Which sample type is most common for immunoassays?", options: ["Whole blood", "Serum or Plasma", "Hair", "Skin scraping"], correct: 1, rationale: "Serum/Plasma." },
+            { id: 60, question: "'More patient antigen = Lower signal' describes which assay?", options: ["Sandwich", "Direct", "Competitive", "Indirect"], correct: 2, rationale: "Competitive assay." },
+
+            // Subject 3: Hematology
+            { id: 61, question: "Hematology is the study of:", options: ["Heart", "Blood and blood-forming organs", "Liver", "Hormones"], correct: 1, rationale: "Study of blood." },
+            { id: 62, question: "What percentage of whole blood is Plasma?", options: ["45%", "55%", "90%", "10%"], correct: 1, rationale: "55%." },
+            { id: 63, question: "Which formed element is responsible for oxygen transport?", options: ["Leukocytes", "Erythrocytes (RBCs)", "Thrombocytes", "Plasma proteins"], correct: 1, rationale: "RBCs transport oxygen." },
+            { id: 64, question: "What is the normal life span of a Red Blood Cell?", options: ["10 days", "120 days", "24 hours", "1 year"], correct: 1, rationale: "120 days." },
+            { id: 65, question: "The 'Buffy Coat' in a centrifuged blood sample contains:", options: ["RBCs only", "Plasma", "WBCs and Platelets", "Serum"], correct: 2, rationale: "WBCs and Platelets." },
+            { id: 66, question: "Which protein in RBCs binds oxygen?", options: ["Albumin", "Hemoglobin", "Fibrinogen", "Globulin"], correct: 1, rationale: "Hemoglobin." },
+            { id: 67, question: "What is the main function of Neutrophils?", options: ["Produce antibodies", "Phagocytosis of bacteria", "Clotting", "Transport CO2"], correct: 1, rationale: "Phagocytosis." },
+            { id: 68, question: "Which WBC is increased in parasitic infections and allergies?", options: ["Neutrophil", "Eosinophil", "Monocyte", "Lymphocyte"], correct: 1, rationale: "Eosinophils." },
+            { id: 69, question: "Which cells produce antibodies?", options: ["T-lymphocytes", "B-lymphocytes", "Monocytes", "Basophils"], correct: 1, rationale: "B-lymphocytes." },
+            { id: 70, question: "Platelets are derived from which bone marrow cell?", options: ["Erythroblast", "Megakaryocyte", "Myeloblast", "Lymphoblast"], correct: 1, rationale: "Megakaryocyte." },
+            { id: 71, question: "What is the normal platelet count?", options: ["4,000-11,000", "150,000-400,000", "4.5-5.5 million", "500-1000"], correct: 1, rationale: "150k-400k." },
+            { id: 72, question: "A decrease in RBC count or hemoglobin is called:", options: ["Polycythemia", "Anemia", "Leukocytosis", "Thrombocytosis"], correct: 1, rationale: "Anemia." },
+            { id: 73, question: "Which tube is used for a Complete Blood Count (CBC)?", options: ["Green", "Lavender (EDTA)", "Red", "Blue"], correct: 1, rationale: "Lavender top." },
+            { id: 74, question: "What is the function of EDTA in the collection tube?", options: ["Clotting", "Prevents clotting (Anticoagulant)", "Separates serum", "Preserves glucose"], correct: 1, rationale: "Anticoagulant." },
+            { id: 75, question: "Which organ is known as the 'graveyard of RBCs'?", options: ["Liver", "Spleen", "Kidney", "Heart"], correct: 1, rationale: "Spleen." },
+            { id: 76, question: "RBCs are:", options: ["Nucleated spherical", "Anucleate and biconcave", "Nucleated biconcave", "Irregular"], correct: 1, rationale: "Anucleate biconcave discs." },
+            { id: 77, question: "An increase in Neutrophils usually indicates:", options: ["Bacterial infection", "Viral infection", "Allergy", "Parasitic infection"], correct: 0, rationale: "Bacterial infection." },
+            { id: 78, question: "What is Hematocrit?", options: ["Total volume", "Percentage of blood volume occupied by RBCs", "Hb weight", "WBC count"], correct: 1, rationale: "% RBC volume." },
+            { id: 79, question: "Which WBC releases histamine and heparin?", options: ["Eosinophil", "Basophil", "Monocyte", "Lymphocyte"], correct: 1, rationale: "Basophils." },
+            { id: 80, question: "Monocytes differentiate into which tissue cell?", options: ["Mast cell", "Macrophage", "Plasma cell", "Platelet"], correct: 1, rationale: "Macrophages." },
+            { id: 81, question: "Low platelet count is termed:", options: ["Thrombocytosis", "Thrombocytopenia", "Leukopenia", "Anemia"], correct: 1, rationale: "Thrombocytopenia." },
+            { id: 82, question: "Ideally, a CBC sample should be analyzed within:", options: ["2 hours", "24 hours", "48 hours", "1 week"], correct: 1, rationale: "24 hours." },
+            { id: 83, question: "Which test screens for inflammation?", options: ["Hemoglobin", "Erythrocyte Sedimentation Rate (ESR)", "RBC count", "Platelet count"], correct: 1, rationale: "ESR." },
+            { id: 84, question: "Correct mixing of an EDTA tube involves:", options: ["Shaking", "Gentle inversion 8-10 times", "Rolling", "No mixing"], correct: 1, rationale: "Gentle inversion." },
+            { id: 85, question: "Polycythemia refers to:", options: ["Low RBC", "Increased RBC count", "Low Platelets", "High WBC"], correct: 1, rationale: "Increased RBCs." },
+            { id: 86, question: "Leukemia is defined as:", options: ["Low WBC", "Uncontrolled proliferation of abnormal WBCs", "Bacterial infection", "Lack of platelets"], correct: 1, rationale: "Uncontrolled WBC proliferation." },
+            { id: 87, question: "The main protein responsible for osmotic pressure in plasma is:", options: ["Fibrinogen", "Albumin", "Globulin", "Hemoglobin"], correct: 1, rationale: "Albumin." },
+            { id: 88, question: "Sickle cells are found in:", options: ["Iron deficiency", "Sickle cell anemia", "Leukemia", "Spherocytosis"], correct: 1, rationale: "Sickle cell anemia." },
+            { id: 89, question: "The normal WBC count is:", options: ["4,000-11,000", "150,000-400,000", "4-6 million", "500-1000"], correct: 0, rationale: "4k-11k." },
+            { id: 90, question: "Hemolysis in a sample can cause:", options: ["Accurate results", "False results", "Preservation", "Clotting"], correct: 1, rationale: "False results." },
+
+            // Subject 4: Blood Transfusion
+            { id: 91, question: "Who discovered the ABO blood group system?", options: ["Pasteur", "Karl Landsteiner", "Koch", "Blundell"], correct: 1, rationale: "Karl Landsteiner." },
+            { id: 92, question: "Which blood group is considered the 'Universal Donor' for RBCs?", options: ["A", "B", "AB", "O"], correct: 3, rationale: "Group O." },
+            { id: 93, question: "Which blood group is the 'Universal Recipient' for RBCs?", options: ["A", "B", "AB", "O"], correct: 2, rationale: "Group AB." },
+            { id: 94, question: "Landsteiner's Law states that if an antigen is present on RBCs:", options: ["Antibody is in plasma", "Antibody must be absent from plasma", "Person is sick", "Rh pos"], correct: 1, rationale: "Corresponding antibody is absent." },
+            { id: 95, question: "A person with Blood Group A has:", options: ["B antigens", "A antigens and Anti-B antibodies", "A and B antigens", "No antigens"], correct: 1, rationale: "A antigens + Anti-B." },
+            { id: 96, question: "The Rh system is named after which antigen?", options: ["A", "D antigen", "M", "K"], correct: 1, rationale: "D antigen." },
+            { id: 97, question: "Hemolytic Disease of the Newborn (HDN) typically occurs when:", options: ["Mother Rh+ Baby Rh-", "Mother Rh- and Baby Rh+", "Both Rh-", "Both Rh+"], correct: 1, rationale: "Rh- Mom, Rh+ Baby." },
+            { id: 98, question: "What is given to an Rh-negative mother to prevent HDN?", options: ["Antibiotics", "Rh Immunoglobulin (Anti-D)", "Blood", "Steroids"], correct: 1, rationale: "RhIg (RhoGAM)." },
+            { id: 99, question: "Which test compares donor RBCs with recipient serum?", options: ["Major Crossmatch", "Minor Crossmatch", "Coombs", "CBC"], correct: 0, rationale: "Major Crossmatch." },
+            { id: 100, question: "The 'Bombay Phenotype' lacks which antigen?", options: ["A", "B", "H antigen", "D"], correct: 2, rationale: "H antigen." },
+            { id: 101, question: "People with Bombay blood group can receive blood from:", options: ["O donors", "Other Bombay phenotype donors only", "AB", "Any"], correct: 1, rationale: "Only other Bombay donors." },
+            { id: 102, question: "Which anticoagulant is commonly used in blood bags?", options: ["EDTA", "Heparin", "CPDA-1", "Oxalate"], correct: 2, rationale: "CPDA-1." },
+            { id: 103, question: "What is the minimum age for blood donation?", options: ["16", "18 years", "21", "25"], correct: 1, rationale: "18 years." },
+            { id: 104, question: "A donor weighing 50 kg can donate approximately:", options: ["350 mL", "450 mL", "500 mL", "250 mL"], correct: 1, rationale: "450 mL." },
+            { id: 105, question: "How long must a donor wait after a Malaria infection?", options: ["1 month", "3 months", "1 year", "3 years/Permanent"], correct: 2, rationale: "Varies, often 1-3 years symptom-free." },
+            { id: 106, question: "History of Jaundice defers a donor for:", options: ["6 months", "1 year", "5 years", "Permanently"], correct: 3, rationale: "Often permanent if unknown cause/viral." },
+            { id: 107, question: "Which infection results in permanent deferral from donation?", options: ["Flu", "HIV or Hepatitis B/C", "Chickenpox", "Diarrhea"], correct: 1, rationale: "HIV/Hepatitis." },
+            { id: 108, question: "Which blood group system provides natural protection against Malaria?", options: ["ABO", "Duffy (absence of antigen)", "Kell", "Kidd"], correct: 1, rationale: "Duffy null." },
+            { id: 109, question: "Which antibodies are 'warm antibodies' (IgG)?", options: ["ABO", "Rh antibodies", "Lewis", "IgM"], correct: 1, rationale: "Rh antibodies." },
+            { id: 110, question: "The purpose of crossmatching is to:", options: ["Check virus", "Ensure compatibility", "Check expiry", "Measure Hb"], correct: 1, rationale: "Ensure compatibility." },
+            { id: 111, question: "Fresh Frozen Plasma (FFP) contains:", options: ["RBCs", "Platelets", "Coagulation factors", "WBCs"], correct: 2, rationale: "Coagulation factors." },
+            { id: 112, question: "Anti-A and Anti-B antibodies are usually which class?", options: ["IgG", "IgM", "IgE", "IgA"], correct: 1, rationale: "IgM." },
+            { id: 113, question: "Which blood component is stored at room temperature?", options: ["RBCs", "Platelets", "Plasma", "Cryo"], correct: 1, rationale: "Platelets." },
+            { id: 114, question: "The term 'autologous transfusion' means:", options: ["Relative's blood", "Receiving one's own blood", "Synthetic", "Animal"], correct: 1, rationale: "Own blood." },
+            { id: 115, question: "What is the maximum body temperature allowed for a donor?", options: ["36.5", "37.5°C", "38.0", "39.0"], correct: 1, rationale: "37.5°C." },
+            { id: 116, question: "Minor crossmatch compares:", options: ["Donor RBC+Recip Serum", "Donor Serum + Recipient RBCs", "Donor RBC+Serum", "Recip RBC+Serum"], correct: 1, rationale: "Donor Serum + Recipient RBCs." },
+            { id: 117, question: "Which blood group has NO antigens on the RBC surface?", options: ["A", "AB", "Group O", "B"], correct: 2, rationale: "Group O." },
+            { id: 118, question: "The Kell blood group antibodies (Anti-K) are:", options: ["Common", "Capable of causing transfusion reactions", "Harmless", "IgM"], correct: 1, rationale: "Can cause reactions." },
+            { id: 119, question: "Apheresis is a process that:", options: ["Tests HIV", "Selectively extracts specific blood components", "Freezes", "Destroys"], correct: 1, rationale: "Selective extraction." },
+            { id: 120, question: "Syphilis testing is performed on donor blood using:", options: ["Serologic tests", "Culture", "Smear", "Genetic"], correct: 0, rationale: "Serology." },
+
+            // Subject 5: Genetics
+            { id: 121, question: "What is the molecular instruction manual of the body?", options: ["RNA", "DNA", "Protein", "Enzyme"], correct: 1, rationale: "DNA." },
+            { id: 122, question: "How many pairs of chromosomes do humans have?", options: ["20", "23", "46", "12"], correct: 1, rationale: "23 pairs." },
+            { id: 123, question: "The actual genetic makeup of an individual is called the:", options: ["Phenotype", "Genotype", "Karyotype", "Haplotype"], correct: 1, rationale: "Genotype." },
+            { id: 124, question: "The observable characteristics are called the:", options: ["Genotype", "Phenotype", "Allele", "Mutation"], correct: 1, rationale: "Phenotype." },
+            { id: 125, question: "Humans share what percentage of their DNA sequence?", options: ["50%", "75%", "99.9%", "10%"], correct: 2, rationale: "99.9%." },
+            { id: 126, question: "Which inheritance pattern requires only one mutated copy for disease expression?", options: ["Autosomal Recessive", "Autosomal Dominant", "X-Linked", "Mitochondrial"], correct: 1, rationale: "Autosomal Dominant." },
+            { id: 127, question: "Cystic Fibrosis is an example of which inheritance pattern?", options: ["Dominant", "Autosomal Recessive", "X-Linked", "Y-Linked"], correct: 1, rationale: "Autosomal Recessive." },
+            { id: 128, question: "In X-linked inheritance, who is primarily affected?", options: ["Females", "Males", "Both", "Neither"], correct: 1, rationale: "Males." },
+            { id: 129, question: "Which mutation creates a premature stop codon?", options: ["Missense", "Nonsense", "Silent", "Frameshift"], correct: 1, rationale: "Nonsense." },
+            { id: 130, question: "BRCA1 and BRCA2 genes are:", options: ["Oncogenes", "Tumor suppressor genes", "Viral", "Metabolic"], correct: 1, rationale: "Tumor suppressors." },
+            { id: 131, question: "A 'Frameshift Mutation' involves:", options: ["Base change", "Insertion or deletion not divisible by three", "No change", "Stop codon"], correct: 1, rationale: "Indel not divisible by 3." },
+            { id: 132, question: "BRCA1 mutations significantly increase the risk of:", options: ["Lung", "Breast and Ovarian cancer", "Liver", "Bone"], correct: 1, rationale: "Breast/Ovarian." },
+            { id: 133, question: "What is 'Pharmacogenomics'?", options: ["Pharmacy", "Study of how genes affect drug response", "Gene therapy", "Viruses"], correct: 1, rationale: "Genes & drug response." },
+            { id: 134, question: "Which enzyme system metabolizes 75% of medications?", options: ["Cytochrome P450 (CYP450)", "Amylase", "Lipase", "Polymerase"], correct: 0, rationale: "CYP450." },
+            { id: 135, question: "Polymerase Chain Reaction (PCR) is used to:", options: ["Separate", "Amplify specific DNA segments", "Measure BP", "Count"], correct: 1, rationale: "Amplify DNA." },
+            { id: 136, question: "What does a 'VUS' result mean?", options: ["Useful", "Variant of Uncertain Significance", "Unsafe", "Virus"], correct: 1, rationale: "Uncertain Significance." },
+            { id: 137, question: "Which law protects against genetic discrimination?", options: ["HIPAA", "GINA", "OSHA", "FDA"], correct: 1, rationale: "GINA." },
+            { id: 138, question: "A 'Previvor' is:", options: ["Survivor", "Someone with a genetic risk who has not developed the disease", "Immune", "Donor"], correct: 1, rationale: "Risk without disease." },
+            { id: 139, question: "Prophylactic surgery is a form of:", options: ["Treatment", "Risk-reduction intervention", "Diagnostic", "Chemo"], correct: 1, rationale: "Risk reduction." },
+            { id: 140, question: "Warfarin dosing can be influenced by variants in which genes?", options: ["BRCA", "VKORC1 and CYP2C9", "HLA", "CFTR"], correct: 1, rationale: "VKORC1/CYP2C9." },
+            { id: 141, question: "Lynch syndrome increases the risk of:", options: ["Breast", "Colorectal and Endometrial cancer", "Lung", "Skin"], correct: 1, rationale: "Colorectal/Endometrial." },
+            { id: 142, question: "Whole Exome Sequencing analyzes:", options: ["Genome", "Protein-coding regions (~1%)", "Mitochondria", "Introns"], correct: 1, rationale: "Coding regions." },
+            { id: 143, question: "HLA-B27 is associated with:", options: ["Diabetes", "Ankylosing Spondylitis", "HIV", "Malaria"], correct: 1, rationale: "Ankylosing Spondylitis." },
+            { id: 144, question: "Which blood type shows some protection against severe COVID-19?", options: ["A", "Type O", "AB", "B"], correct: 1, rationale: "Type O." },
+            { id: 145, question: "CCR5-delta32 mutation provides resistance to:", options: ["Malaria", "HIV infection", "Flu", "Cancer"], correct: 1, rationale: "HIV." },
+            { id: 146, question: "A pedigree of how many generations is essential?", options: ["One", "Two", "Three", "Five"], correct: 2, rationale: "Three generations." },
+            { id: 147, question: "Gel Electrophoresis separates DNA based on:", options: ["Color", "Size", "Shape", "Temp"], correct: 1, rationale: "Size." },
+            { id: 148, question: "'Cascade testing' refers to:", options: ["Water", "Testing relatives of a person with a positive result", "Multiple diseases", "Repeat"], correct: 1, rationale: "Testing relatives." },
+            { id: 149, question: "Most human genetic diversity is contained in what percentage of DNA?", options: ["10%", "50%", "0.1%", "1%"], correct: 2, rationale: "0.1%." },
+            { id: 150, question: "Consanguinity increases the risk of:", options: ["Dominant", "Autosomal Recessive disorders", "Viral", "X-linked"], correct: 1, rationale: "Recessive disorders." },
+
+            // Subject 6: Infection Control
+            { id: 151, question: "What is the single most important measure to prevent infection?", options: ["Gloves", "Hand Hygiene", "Mask", "Isolation"], correct: 1, rationale: "Hand Hygiene." },
+            { id: 152, question: "Standard Precautions apply to:", options: ["Infectious only", "All patients regardless of diagnosis", "HIV only", "Surgical only"], correct: 1, rationale: "All patients." },
+            { id: 153, question: "How long should you wash your hands?", options: ["5s", "At least 20 seconds", "1 min", "10s"], correct: 1, rationale: "20 seconds." },
+            { id: 154, question: "Which PPE is used for 'Airborne Precautions'?", options: ["Mask", "N95 Respirator", "Cloth", "Shield"], correct: 1, rationale: "N95." },
+            { id: 155, question: "Hepatitis B is transmitted primarily through:", options: ["Respiratory", "Blood and body fluids", "Food", "Casual"], correct: 1, rationale: "Blood/fluids." },
+            { id: 156, question: "Most hospital clinical laboratories operate at which Biosafety Level?", options: ["1", "BSL-2", "3", "4"], correct: 1, rationale: "BSL-2." },
+            { id: 157, question: "Which bin color is used for biohazardous/infectious waste?", options: ["Black", "Red", "Yellow", "Blue"], correct: 2, rationale: "Yellow (or Red depending on region)." },
+            { id: 158, question: "Yellow bags are typically used for:", options: ["General", "Infectious/Biohazard", "Sharps", "Paper"], correct: 1, rationale: "Infectious waste." },
+            { id: 159, question: "When doffing (removing) PPE, which item is removed first?", options: ["Mask", "Gown", "Gloves (most contaminated)", "Goggles"], correct: 2, rationale: "Gloves." },
+            { id: 160, question: "Recapping needles is:", options: ["Recommended", "Generally prohibited", "Mandatory", "Safe"], correct: 1, rationale: "Prohibited." },
+            { id: 161, question: "Sharps containers should be replaced when they are:", options: ["Full", "2/3 full", "Empty", "Overflowing"], correct: 1, rationale: "2/3 full." },
+            { id: 162, question: "Immediate first aid for a needlestick injury is:", options: ["Squeeze", "Wash with soap and water", "Bleach", "Bandage"], correct: 1, rationale: "Wash." },
+            { id: 163, question: "What is the correct order for Donning (putting on) PPE?", options: ["Gloves first", "Gown, Mask, Eye, Gloves", "Mask first", "Random"], correct: 1, rationale: "Gown, Mask, Eye, Gloves." },
+            { id: 164, question: "Contact Precautions are used for:", options: ["TB", "MRSA, C. difficile", "Flu", "Measles"], correct: 1, rationale: "MRSA/C.diff." },
+            { id: 165, question: "Alcohol-based hand rub is ineffective against:", options: ["HIV", "C. difficile spores", "Flu", "Staph"], correct: 1, rationale: "C. diff spores." },
+            { id: 166, question: "What does PPE stand for?", options: ["Prevention", "Personal Protective Equipment", "Private", "Public"], correct: 1, rationale: "Personal Protective Equipment." },
+            { id: 167, question: "Which device protects personnel from aerosols in the lab?", options: ["Hood", "Biological Safety Cabinet (BSC)", "Autoclave", "Centrifuge"], correct: 1, rationale: "BSC." },
+            { id: 168, question: "How long is the contact time for 10% bleach on a spill?", options: ["1 min", "10-20 minutes", "1 hour", "5 sec"], correct: 1, rationale: "10-20 mins." },
+            { id: 169, question: "Universal biohazard symbol warns of:", options: ["Radiation", "Infectious material", "Poison", "Electricity"], correct: 1, rationale: "Infectious material." },
+            { id: 170, question: "Post-Exposure Prophylaxis (PEP) for HIV should start within:", options: ["2 hours", "24h", "72h", "1 week"], correct: 0, rationale: "ASAP, ideally 2 hours." },
+            { id: 171, question: "Which vaccine is mandatory for healthcare workers handling blood?", options: ["Hepatitis B", "Hep C", "HIV", "Malaria"], correct: 0, rationale: "Hep B." },
+            { id: 172, question: "What is a 'Near-miss'?", options: ["Injury", "An incident that could have caused harm but didn't", "Violation", "Complaint"], correct: 1, rationale: "Potential harm avoided." },
+            { id: 173, question: "In the Chain of Infection, vaccination breaks which link?", options: ["Exit", "Susceptible Host", "Transmission", "Reservoir"], correct: 1, rationale: "Susceptible Host." },
+            { id: 174, question: "Double gloving is recommended for:", options: ["All", "High-risk procedures", "Transport", "Docs"], correct: 1, rationale: "High risk." },
+            { id: 175, question: "Which agent requires BSL-3 precautions?", options: ["E.coli", "Mycobacterium tuberculosis", "Staph", "Ebola"], correct: 1, rationale: "TB." },
+            { id: 176, question: "A 'Nosocomial infection' is:", options: ["Community", "Healthcare-associated (HAI)", "Genetic", "Allergic"], correct: 1, rationale: "HAI." },
+            { id: 177, question: "Safety showers must be within how many seconds of a hazard?", options: ["10 seconds", "1 min", "5 min", "Next floor"], correct: 0, rationale: "10 seconds." },
+            { id: 178, question: "What is the ratio for bleach solution used on spills?", options: ["1:100", "1:10 (10%)", "1:1", "Pure"], correct: 1, rationale: "1:10." },
+            { id: 179, question: "Never pipette by:", options: ["Hand", "Mouth", "Machine", "Bulb"], correct: 1, rationale: "Mouth." },
+            { id: 180, question: "Who is responsible for Infection Control?", options: ["Docs", "Cleaners", "Everyone", "Gov"], correct: 2, rationale: "Everyone." },
+
+            // Subject 7: POCT
+            { id: 181, question: "What is Point-of-Care Testing (POCT)?", options: ["Central lab", "Testing performed at or near the site of patient care", "Mail", "Research"], correct: 1, rationale: "Near patient care." },
+            { id: 182, question: "A major advantage of POCT is:", options: ["Cost", "Rapid results", "Complexity", "Volume"], correct: 1, rationale: "Rapid results." },
+            { id: 183, question: "Which is a common POCT application?", options: ["Blood Glucose monitoring", "DNA", "MRI", "Biopsy"], correct: 0, rationale: "Glucose." },
+            { id: 184, question: "The preferred site for adult fingerstick is:", options: ["Thumb", "Lateral side of 3rd or 4th finger", "Index", "Center"], correct: 1, rationale: "Lateral 3rd/4th." },
+            { id: 185, question: "For infants, the collection site is:", options: ["Finger", "Lateral/Medial plantar surface of heel", "Ear", "Toe"], correct: 1, rationale: "Heel." },
+            { id: 186, question: "Why must alcohol dry completely before puncture?", options: ["Pain", "To prevent hemolysis and sample dilution", "Warm", "Clot"], correct: 1, rationale: "Prevent hemolysis/dilution." },
+            { id: 187, question: "What is the first step after puncturing the skin?", options: ["Collect", "Wipe away the first drop", "Bandage", "Squeeze"], correct: 1, rationale: "Wipe first drop." },
+            { id: 188, question: "Excessive squeezing of the finger causes:", options: ["Flow", "Hemolysis and tissue fluid contamination", "Less pain", "Clot"], correct: 1, rationale: "Hemolysis/contamination." },
+            { id: 189, question: "Quality Control (QC) in POCT ensures:", options: ["Cleanliness", "Accuracy and reliability of results", "Battery", "Happiness"], correct: 1, rationale: "Accuracy/Reliability." },
+            { id: 190, question: "A 'Critical Value' requires:", options: ["Doc only", "Immediate notification of physician and intervention", "Repeat later", "Ignore"], correct: 1, rationale: "Immediate action." },
+            { id: 191, question: "If a POCT glucometer shows 'Error', what is the first step?", options: ["Insulin", "Troubleshoot (check strip, battery, retest)", "Call lab", "Guess"], correct: 1, rationale: "Troubleshoot." },
+            { id: 192, question: "Which test monitors Warfarin therapy?", options: ["Glucose", "INR/PT", "Troponin", "Hgb"], correct: 1, rationale: "INR/PT." },
+            { id: 193, question: "Troponin is a marker for:", options: ["Kidney", "Acute Myocardial Infarction", "Liver", "Diabetes"], correct: 1, rationale: "Heart attack." },
+            { id: 194, question: "Which urine test parameter indicates a UTI?", options: ["Glucose", "Leukocytes and Nitrites", "Ketones", "Bilirubin"], correct: 1, rationale: "Leukocytes/Nitrites." },
+            { id: 195, question: "Normal fasting blood glucose range is approximately:", options: ["70-100 mg/dL", "20-50", "150-200", ">200"], correct: 0, rationale: "70-100." },
+            { id: 196, question: "What is the maximum puncture depth for an infant heelstick?", options: ["5 mm", "2.0 mm", "1 mm", "10 mm"], correct: 1, rationale: "2.0 mm." },
+            { id: 197, question: "SBAR stands for:", options: ["Stop...", "Situation, Background, Assessment, Recommendation", "Safety...", "Standard..."], correct: 1, rationale: "SBAR." },
+            { id: 198, question: "Which anticoagulant causes a false elevation of Potassium?", options: ["Citrate", "Heparin", "Hemolysis (collection error)", "EDTA"], correct: 2, rationale: "Hemolysis releases K+." },
+            { id: 199, question: "Hypoglycemia treatment rule of thumb is:", options: ["Wait", "Give 15-20g fast-acting carbohydrate", "Insulin", "Water"], correct: 1, rationale: "15-20g carbs." },
+            { id: 200, question: "Lateral flow assays (like pregnancy tests) provide:", options: ["Quantitative", "Qualitative (Pos/Neg) results", "DNA", "Counts"], correct: 1, rationale: "Qualitative." },
+            { id: 201, question: "'Milking' the finger refers to:", options: ["Gentle", "Strong repetitive squeezing (should be avoided)", "Warming", "Cleaning"], correct: 1, rationale: "Avoid strong squeezing." },
+            { id: 202, question: "POCT waste (strips, lancets) goes into:", options: ["Trash", "Biohazard/Sharps container", "Recycle", "Sink"], correct: 1, rationale: "Biohazard." },
+            { id: 203, question: "If a critical potassium level (6.8 mmol/L) is found:", options: ["Recheck 24h", "Obtain ECG and notify physician immediately", "K+ supps", "Home"], correct: 1, rationale: "Immediate notify/ECG." },
+            { id: 204, question: "Elevated Lactate (>2 mmol/L) suggests:", options: ["Diabetes", "Sepsis / Tissue hypoperfusion", "Anemia", "HTN"], correct: 1, rationale: "Sepsis." },
+            { id: 205, question: "Who is responsible for operator competency in POCT?", options: ["Manuf", "The facility/Nurse Manager", "Patient", "Ins"], correct: 1, rationale: "Facility." },
+            { id: 206, question: "Dehydration can cause false elevation of:", options: ["Hemoglobin and Hematocrit", "Glucose", "WBCs", "Platelets"], correct: 0, rationale: "Hemoconcentration." },
+            { id: 207, question: "Which patient population is ideal for capillary sampling?", options: ["Edema", "Pediatric/Infants", "Shock", "Cold"], correct: 1, rationale: "Infants." },
+            { id: 208, question: "POCT connectivity to EMR helps prevent:", options: ["Testing", "Transcription errors", "Treatment", "Discharge"], correct: 1, rationale: "Transcription errors." },
+            { id: 209, question: "Before performing a POCT, you must:", options: ["Verify patient ID (2 identifiers)", "Eat", "Call doc", "Open window"], correct: 0, rationale: "Patient ID." },
+            { id: 210, question: "The first drop of blood in a capillary stick contains:", options: ["Pure blood", "Tissue fluid", "Anticoag", "Plasma"], correct: 1, rationale: "Tissue fluid." }
+        ];
+
+        // --- FLASHCARDS GENERATED FROM CONTENT ---
+        const FULL_FLASHCARDS = [
+            { id: 1, front: "Innate Immunity", back: "Present at birth, non-specific defense." },
+            { id: 2, front: "Adaptive Immunity", back: "Acquired through exposure, specific, has memory." },
+            { id: 3, front: "IgG", back: "Most abundant antibody, crosses placenta." },
+            { id: 4, front: "IgM", back: "First antibody produced in response to infection." },
+            { id: 5, front: "IgE", back: "Antibody involved in allergies and parasitic infections." },
+            { id: 6, front: "ELISA", back: "Enzyme-Linked Immunosorbent Assay." },
+            { id: 7, front: "Monoclonal Antibody", back: "Binds to a single specific epitope." },
+            { id: 8, front: "Sandwich Assay", back: "Antigen is bound between capture and detection antibodies." },
+            { id: 9, front: "Hematocrit", back: "Percentage of blood volume occupied by Red Blood Cells." },
+            { id: 10, front: "Neutrophils", back: "Phagocytes increased in bacterial infections." },
+            { id: 11, front: "Universal Donor (RBC)", back: "Group O." },
+            { id: 12, front: "Universal Recipient (RBC)", back: "Group AB." },
+            { id: 13, front: "Genotype", back: "The genetic makeup of an individual." },
+            { id: 14, front: "Phenotype", back: "Observable physical characteristics." },
+            { id: 15, front: "Hand Hygiene", back: "Single most important measure to prevent infection." },
+            { id: 16, front: "Standard Precautions", back: "Apply to all patients regardless of diagnosis." },
+            { id: 17, question: "POCT", back: "Point-of-Care Testing: Testing near the patient." },
+            { id: 18, front: "Critical Value", back: "Life-threatening result requiring immediate notification." },
+            { id: 19, front: "Hemolysis", back: "RBC destruction, releases K+, causes errors." },
+            { id: 20, front: "SBAR", back: "Situation, Background, Assessment, Recommendation." }
+        ];
+
+        const getRank = (xp) => {
+            return [...RANKS].reverse().find(r => xp >= r.minXP) || RANKS[0];
+        };
+
+        const getNextRank = (xp) => {
+            return RANKS.find(r => r.minXP > xp) || null;
+        };
+
+        // --- COMPONENTS ---
+        const Button = ({ onClick, children, variant = 'primary', className = '', disabled = false }) => {
+            const baseStyle = "px-6 py-3 rounded-xl font-bold transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg flex items-center justify-center gap-2 relative z-10";
+            const variants = {
+                primary: "bg-green-600 text-black hover:bg-green-500 shadow-[0_0_10px_#22c55e]",
+                secondary: "bg-gray-800 text-green-400 border border-green-500 hover:bg-gray-700",
+                success: "bg-green-500 text-black hover:bg-green-400",
+                danger: "bg-red-600 text-white hover:bg-red-500",
+                outline: "bg-transparent border-2 border-green-500 text-green-400 hover:bg-green-900/20"
+            };
+            
+            return (
+                <button 
+                    onClick={() => { 
+                        if(!disabled) {
+                            playSound('click'); 
+                            onClick(); 
+                        }
+                    }} 
+                    className={`${baseStyle} ${variants[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed transform-none' : ''}`}
+                    disabled={disabled}
+                >
+                    {children}
+                </button>
+            );
+        };
+
+        const BadgeNotification = ({ badge, onClose }) => {
+            useEffect(() => {
+                const timer = setTimeout(onClose, 4000);
+                return () => clearTimeout(timer);
+            }, [onClose]);
+
+            return (
+                <div className="fixed top-4 right-4 z-[60] animate-slide-in-right">
+                    <div className="bg-gray-900 border-l-4 border-green-500 text-green-400 p-4 rounded shadow-[0_0_15px_rgba(34,197,94,0.5)] flex items-center gap-4 max-w-sm">
+                        <div className="bg-green-900/50 p-3 rounded-full animate-bounce-slow text-green-400">
+                            {badge.icon}
+                        </div>
+                        <div>
+                            <h4 className="font-bold text-lg flex items-center gap-2 font-mono text-green-300">Badge Unlocked!</h4>
+                            <p className="font-bold text-green-500 font-mono">{badge.name}</p>
+                            <p className="text-sm text-green-600 font-mono">{badge.description}</p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const VirtualMentor = ({ mood = 'neutral', message }) => {
+            const getEmoji = () => {
+                switch(mood) {
+                    case 'happy': return '👨‍💻';
+                    case 'excited': return '🚀';
+                    case 'thinking': return '🤔';
+                    case 'concerned': return '🐛';
+                    case 'waving': return '👋';
+                    case 'celebrating': return '🎉';
+                    default: return '🤖';
+                }
+            };
+
+            return (
+                <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end animate-bounce-slow pointer-events-none">
+                    <div className="bg-gray-900 p-4 rounded-2xl rounded-br-none shadow-[0_0_10px_#22c55e] border border-green-500/50 mb-2 max-w-xs transform transition-all duration-500 animate-fade-in">
+                        <p className="text-green-400 font-medium text-sm font-mono typing-effect">{message}</p>
+                    </div>
+                    <div className="bg-gray-800 p-3 rounded-full shadow-lg border-2 border-green-500 text-4xl transition-transform duration-300 hover:scale-110 grayscale hover:grayscale-0">
+                        {getEmoji()}
+                    </div>
+                </div>
+            );
+        };
+
+        const Confetti = () => {
+            return (
+                <div className="fixed inset-0 pointer-events-none z-40 flex justify-center overflow-hidden">
+                    {Array.from({ length: 30 }).map((_, i) => (
+                        <div 
+                            key={i} 
+                            className="absolute animate-fall"
+                            style={{
+                                left: `${Math.random() * 100}%`,
+                                top: `-${Math.random() * 20}%`,
+                                animationDuration: `${2 + Math.random() * 3}s`,
+                                animationDelay: `${Math.random() * 2}s`,
+                            }}
+                        >
+                            <div 
+                                className="w-3 h-3 rounded-sm" 
+                                style={{
+                                    backgroundColor: ['#22c55e', '#16a34a', '#4ade80', '#000'][Math.floor(Math.random() * 4)],
+                                    transform: `rotate(${Math.random() * 360}deg)`
+                                }} 
+                            />
+                        </div>
+                    ))}
+                </div>
+            );
+        };
+
+        const StartScreen = ({ onStart, userProfile, badges }) => {
+            const [mode, setMode] = useState('quiz');
+            const [count, setCount] = useState(10);
+            const currentRank = getRank(userProfile.xp);
+            const nextRank = getNextRank(userProfile.xp);
+            const progress = nextRank ? ((userProfile.xp - currentRank.minXP) / (nextRank.minXP - currentRank.minXP)) * 100 : 100;
+
+            return (
+                <div className="min-h-screen flex flex-col items-center p-4 animate-fade-in pb-24 relative z-10">
+                    
+                    <div className="w-full max-w-2xl bg-gray-900/90 backdrop-blur-sm rounded-2xl shadow-lg p-6 mb-8 border border-green-500/30 glow-box">
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <h2 className="text-2xl font-black text-green-400 font-mono">{currentRank.title}</h2>
+                                <p className="text-green-600 text-sm font-mono">Level {currentRank.level}</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-2xl font-bold text-green-400 font-mono">{userProfile.xp.toLocaleString()} XP</p>
+                                <p className="text-xs text-green-600 font-mono">Total Score</p>
+                            </div>
+                        </div>
+                        
+                        <div className="w-full bg-gray-800 rounded-full h-4 mb-2 relative overflow-hidden border border-green-900">
+                            <div className="bg-green-500 h-full rounded-full transition-all duration-1000 shadow-[0_0_10px_#22c55e]" style={{ width: `${progress}%` }}></div>
+                        </div>
+                        <p className="text-xs text-green-600 text-right font-mono">
+                            {nextRank ? `${Math.round(nextRank.minXP - userProfile.xp)} XP to next rank` : 'Max Rank Achieved!'}
+                        </p>
+
+                        <div className="mt-6">
+                            <h3 className="font-bold text-green-400 mb-3 flex items-center gap-2 font-mono"><Award className="w-4 h-4"/> Achievements</h3>
+                            <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
+                                {BADGES.map(badge => {
+                                    const isUnlocked = badges.includes(badge.id);
+                                    return (
+                                        <div key={badge.id} className={`flex-shrink-0 w-16 h-16 rounded-xl flex flex-col items-center justify-center p-1 transition-all border-2 ${isUnlocked ? 'bg-green-900/30 border-green-500 text-green-400 shadow-[0_0_10px_rgba(34,197,94,0.3)]' : 'bg-gray-800/50 border-gray-700 text-gray-600 opacity-50 grayscale'}`} title={badge.description}>
+                                            <div className="scale-75">{badge.icon}</div>
+                                            {isUnlocked ? <span className="text-[10px] font-bold mt-1">Earned</span> : <Lock className="w-3 h-3 mt-1" />}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-gray-900/90 backdrop-blur-md p-8 rounded-3xl shadow-xl max-w-2xl w-full border border-green-500/30 animate-slide-up glow-box">
+                        <div className="text-center mb-8">
+                            <h1 className="text-4xl font-black text-green-400 mb-2 tracking-tight glow-text font-mono">CLINICAL LAB MASTERY</h1>
+                            <p className="text-green-600 text-lg font-mono">Select Training Module</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                            <div 
+                                onClick={() => { playSound('click'); setMode('quiz'); }}
+                                className={`p-6 rounded-2xl border-2 cursor-pointer transition-all duration-300 ${mode === 'quiz' ? 'border-green-500 bg-green-900/20 ring-2 ring-green-500/50 scale-105' : 'border-gray-700 hover:border-green-500/50 hover:bg-gray-800'}`}
+                            >
+                                <div className="flex items-center gap-3 mb-3">
+                                    <Brain className={`w-6 h-6 ${mode === 'quiz' ? 'text-green-400' : 'text-gray-500'}`} />
+                                    <h3 className="font-bold text-lg font-mono text-green-300">Trivia Quiz</h3>
+                                </div>
+                                <p className="text-sm text-green-700 font-mono">Earn XP. Debug your knowledge.</p>
+                            </div>
+
+                            <div 
+                                onClick={() => { playSound('click'); setMode('flashcards'); }}
+                                className={`p-6 rounded-2xl border-2 cursor-pointer transition-all duration-300 ${mode === 'flashcards' ? 'border-green-500 bg-green-900/20 ring-2 ring-green-500/50 scale-105' : 'border-gray-700 hover:border-green-500/50 hover:bg-gray-800'}`}
+                            >
+                                <div className="flex items-center gap-3 mb-3">
+                                    <BookOpen className={`w-6 h-6 ${mode === 'flashcards' ? 'text-green-400' : 'text-gray-500'}`} />
+                                    <h3 className="font-bold text-lg font-mono text-green-300">Flashcards</h3>
+                                </div>
+                                <p className="text-sm text-green-700 font-mono">Review docs. Compile memory.</p>
+                            </div>
+                        </div>
+
+                        <div className="mb-8">
+                            <label className="block text-sm font-bold text-green-500 mb-3 font-mono">Batch Size</label>
+                            <div className="flex gap-4">
+                                {[5, 10, 20, 50, 100, 210].map(num => (
+                                    <button
+                                        key={num}
+                                        onClick={() => { playSound('click'); setCount(num); }}
+                                        className={`flex-1 py-2 rounded-lg font-bold font-mono transition-all duration-200 border ${count === num ? 'bg-green-600 text-black border-green-400 shadow-[0_0_10px_#22c55e]' : 'bg-gray-800 text-green-600 border-gray-700 hover:border-green-500'}`}
+                                    >
+                                        {num}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <Button onClick={() => onStart(mode, count)} className="w-full text-lg py-4 font-mono border-green-500 text-green-900 bg-green-400 hover:bg-green-300">
+                            Initialize <ArrowRight className="w-5 h-5" />
+                        </Button>
+                    </div>
+                    <VirtualMentor mood="happy" message={`System Ready. User: ${currentRank.title}. Initiate sequence?`} />
+                </div>
+            );
+        };
+
+        const QuizGame = ({ count, onFinish, onExit, onUnlockBadge, earnedBadges }) => {
+            const [currentQ, setCurrentQ] = useState(0);
+            const [sessionScore, setSessionScore] = useState(0);
+            const [sessionXP, setSessionXP] = useState(0);
+            const [streak, setStreak] = useState(0);
+            const [feedbackAnim, setFeedbackAnim] = useState(null);
+            const [selectedOption, setSelectedOption] = useState(null);
+            const [isRevealed, setIsRevealed] = useState(false);
+            const [questions, setQuestions] = useState([]);
+            const [timeLeft, setTimeLeft] = useState(30); 
+            const [quizHistory, setQuizHistory] = useState([]);
+            
+            useEffect(() => {
+                const shuffled = [...FULL_QUESTION_BANK].sort(() => 0.5 - Math.random());
+                const selectedQuestions = shuffled.slice(0, count);
+                
+                const processedQuestions = selectedQuestions.map(q => {
+                    const optionsWithId = q.options.map((opt, index) => ({
+                        text: opt,
+                        isCorrect: index === q.correct
+                    }));
+                    const shuffledOptions = optionsWithId.sort(() => 0.5 - Math.random());
+                    return {
+                        ...q,
+                        options: shuffledOptions.map(o => o.text),
+                        correct: shuffledOptions.findIndex(o => o.isCorrect)
+                    };
+                });
+
+                setQuestions(processedQuestions);
+            }, [count]);
+
+            useEffect(() => {
+                if (isRevealed) return;
+                if (timeLeft <= 0) {
+                    handleOptionSelect(-1); 
+                    return;
+                }
+                const timer = setInterval(() => setTimeLeft(t => t - 1), 1000);
+                return () => clearInterval(timer);
+            }, [timeLeft, isRevealed]);
+
+            const handleOptionSelect = (index) => {
+                if (isRevealed) return;
+                setSelectedOption(index);
+                setIsRevealed(true);
+                
+                const currentQuestion = questions[currentQ];
+                const isCorrect = index === currentQuestion.correct;
+                
+                let xpEarned = 0;
+
+                if (isCorrect) {
+                    setFeedbackAnim('correct');
+                    setTimeout(() => setFeedbackAnim(null), 1000);
+
+                    let points = 100;
+                    points += timeLeft * 5; 
+                    const newStreak = streak + 1;
+                    setStreak(newStreak);
+                    points += (newStreak - 1) * 10; 
+
+                    setSessionScore(s => s + 1);
+                    setSessionXP(x => x + points);
+                    xpEarned = points;
+                    playSound('correct');
+
+                    checkBadges(newStreak, timeLeft, sessionScore + 1, questions.length);
+
+                } else {
+                    setFeedbackAnim('wrong');
+                    setTimeout(() => setFeedbackAnim(null), 1000);
+
+                    setStreak(0);
+                    playSound('wrong');
+                }
+
+                setQuizHistory(prev => [...prev, {
+                    question: currentQuestion,
+                    userAnswer: index,
+                    isCorrect,
+                    xp: xpEarned
+                }]);
+            };
+
+            const nextQuestion = () => {
+                if (currentQ < questions.length - 1) {
+                    setCurrentQ(c => c + 1);
+                    setSelectedOption(null);
+                    setIsRevealed(false);
+                    setTimeLeft(30);
+                } else {
+                    finishQuiz();
+                }
+            };
+
+            // --- KEYBOARD LISTENER ---
+            useEffect(() => {
+                const handleKeyDown = (e) => {
+                    const key = e.key.toLowerCase();
+                    
+                    if (!isRevealed) {
+                        if (key === 'a') handleOptionSelect(0);
+                        if (key === 'b') handleOptionSelect(1);
+                        if (key === 'c') handleOptionSelect(2);
+                        if (key === 'd') handleOptionSelect(3);
+                    }
+                    
+                    if (isRevealed && (key === ' ' || key === 'enter')) {
+                        e.preventDefault(); 
+                        nextQuestion();
+                    }
+                };
+
+                window.addEventListener('keydown', handleKeyDown);
+                return () => window.removeEventListener('keydown', handleKeyDown);
+            }, [isRevealed, currentQ, questions.length]); 
+
+            const handleEndQuiz = () => {
+                finishQuiz();
+            };
+
+            const checkBadges = (currentStreak, timeRem, currentScore, totalQs) => {
+                const newBadges = [];
+                if (currentStreak === 3 && !earnedBadges.includes('streak_3')) newBadges.push('streak_3');
+                if (currentStreak === 5 && !earnedBadges.includes('streak_5')) newBadges.push('streak_5');
+                if (timeRem >= 25 && !earnedBadges.includes('speedster')) newBadges.push('speedster');
+                newBadges.forEach(id => onUnlockBadge(id));
+            };
+
+            const finishQuiz = () => {
+                if (sessionScore === questions.length && questions.length >= 5 && !earnedBadges.includes('perfectionist')) {
+                    onUnlockBadge('perfectionist');
+                }
+                if (!earnedBadges.includes('first_step')) {
+                    onUnlockBadge('first_step');
+                }
+                onFinish(sessionScore, sessionXP, (isRevealed ? currentQ + 1 : currentQ), quizHistory);
+            };
+
+            if (questions.length === 0) return <div className="flex justify-center items-center h-screen text-green-500 font-mono font-bold animate-pulse">Loading modules...</div>;
+
+            const q = questions[currentQ];
+
+            return (
+                <div className="min-h-screen bg-gray-900/0 p-4 flex flex-col items-center animate-fade-in relative overflow-hidden z-10">
+                    
+                    {feedbackAnim && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none backdrop-blur-sm transition-all duration-300">
+                            <div className={`absolute inset-0 opacity-20 ${feedbackAnim === 'correct' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                            <div className="relative animate-pop-in">
+                                {feedbackAnim === 'correct' ? (
+                                    <div className="bg-gray-900 p-8 rounded-full shadow-[0_0_50px_#22c55e] border-4 border-green-500">
+                                        <CheckCircle className="w-40 h-40 text-green-500" />
+                                    </div>
+                                ) : (
+                                    <div className="bg-gray-900 p-8 rounded-full shadow-[0_0_50px_#ef4444] border-4 border-red-500">
+                                        <XCircle className="w-40 h-40 text-red-500" />
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="w-full max-w-3xl flex justify-between items-center mb-4 p-2">
+                        <button onClick={onExit} className="p-2 rounded-full bg-gray-800 hover:bg-gray-700 text-green-400 border border-green-500/30 transition-colors flex items-center gap-2 px-4 font-medium text-sm">
+                            <Home className="w-4 h-4" /> Home
+                        </button>
+                        <div className="flex items-center gap-2 bg-gray-800 text-green-400 border border-green-500/30 px-4 py-2 rounded-full font-bold font-mono shadow-sm">
+                            <TrendingUp className="w-4 h-4" /> {sessionXP} XP
+                        </div>
+                        <button onClick={handleEndQuiz} className="p-2 rounded-full bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-500/30 transition-colors flex items-center gap-2 px-4 font-medium text-sm">
+                            <Flag className="w-4 h-4" /> Abort
+                        </button>
+                    </div>
+
+                    {streak > 1 && (
+                        <div className="mb-4 animate-bounce-slow flex items-center gap-2 text-orange-400 font-black text-xl font-mono">
+                            <Flame className="w-6 h-6 fill-orange-500" /> {streak} COMBO! <span className="text-xs bg-orange-900/30 border border-orange-500/30 px-2 py-1 rounded-full text-orange-300">+{streak * 10} XP</span>
+                        </div>
+                    )}
+
+                    <div className="w-full max-w-3xl flex justify-between items-center mb-6 bg-gray-900/90 backdrop-blur p-4 rounded-xl shadow-[0_0_15px_rgba(34,197,94,0.1)] border border-green-500/30">
+                        <div className="flex items-center gap-2 text-green-600 font-bold font-mono">
+                            <Trophy className="w-5 h-5" /> {sessionScore} / {questions.length}
+                        </div>
+                        <div className={`flex items-center gap-2 font-bold font-mono transition-colors ${timeLeft < 10 ? 'text-red-500 animate-pulse' : 'text-green-600'}`}>
+                            <Clock className="w-5 h-5" /> {timeLeft}s
+                        </div>
+                    </div>
+
+                    <div className="w-full max-w-3xl bg-gray-900/90 rounded-3xl shadow-xl overflow-hidden mb-24 animate-slide-up border border-green-500/30 glow-box">
+                        <div className="p-8 bg-gradient-to-b from-gray-900 to-gray-800">
+                            <h2 className="text-2xl font-bold text-green-400 mb-6 leading-snug font-mono">{q.question}</h2>
+                            <div className="space-y-3">
+                                {q.options.map((opt, idx) => {
+                                    let stateClass = "border-gray-700 bg-gray-800/50 hover:border-green-500 hover:bg-gray-800";
+                                    if (isRevealed) {
+                                        if (idx === q.correct) stateClass = "bg-green-900/40 border-green-500 text-green-300";
+                                        else if (idx === selectedOption) stateClass = "bg-red-900/40 border-red-500 text-red-300";
+                                        else stateClass = "opacity-50 border-gray-800";
+                                    }
+                                    
+                                    const keyBadge = String.fromCharCode(65 + idx);
+
+                                    return (
+                                        <button
+                                            key={idx}
+                                            onClick={() => handleOptionSelect(idx)}
+                                            className={`w-full text-left p-4 rounded-xl border-2 transition-all font-medium flex items-center justify-between group font-mono ${stateClass}`}
+                                            disabled={isRevealed}
+                                        >
+                                            <span className="flex items-center gap-3">
+                                                <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${isRevealed && idx === q.correct ? 'bg-green-500 text-black' : 'bg-gray-700 text-green-500'}`}>
+                                                    {keyBadge}
+                                                </span>
+                                                {opt}
+                                            </span>
+                                            {!isRevealed && <kbd className="hidden md:inline-block px-2 py-1 text-xs font-mono text-gray-500 bg-gray-800 rounded border border-gray-600 shadow-sm">{keyBadge}</kbd>}
+                                            {isRevealed && idx === q.correct && <span className="font-bold text-green-400 text-sm">+100 XP</span>}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {isRevealed && (
+                            <div className="p-6 bg-gray-800/50 border-t border-green-500/30 animate-fade-in">
+                                <div className="flex gap-3 items-start">
+                                    <Terminal className="w-6 h-6 text-green-500 flex-shrink-0 mt-1" />
+                                    <div>
+                                        <h4 className="font-bold text-green-400 mb-1 font-mono">Console Output:</h4>
+                                        <p className="text-green-300/80 leading-relaxed font-mono text-sm">{q.rationale}</p>
+                                    </div>
+                                </div>
+                                <div className="mt-6 flex justify-end">
+                                    <Button onClick={nextQuestion}>
+                                        {currentQ === questions.length - 1 ? "Finish Process" : "Next Iteration"} <span className="ml-2 hidden md:inline opacity-70 text-xs">(Space)</span> <ArrowRight className="w-4 h-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <VirtualMentor 
+                        mood={isRevealed ? (selectedOption === q.correct ? 'celebrating' : 'concerned') : 'thinking'}
+                        message={!isRevealed ? "Awaiting input..." : (selectedOption === q.correct ? "Execution successful." : "Runtime error detected. Review logic.")}
+                    />
+                </div>
+            );
+        };
+
+        const Flashcards = ({ count, onFinish, onExit, onUnlockBadge, earnedBadges }) => {
+            const [cards, setCards] = useState([]);
+            const [current, setCurrent] = useState(0);
+            const [isFlipped, setIsFlipped] = useState(false);
+
+            useEffect(() => {
+                const shuffled = [...FULL_FLASHCARDS].sort(() => 0.5 - Math.random());
+                setCards(shuffled.slice(0, count));
+            }, [count]);
+
+            const handleShuffle = () => {
+                playSound('shuffle');
+                const newShuffled = [...cards].sort(() => 0.5 - Math.random());
+                setCards(newShuffled);
+                setCurrent(0);
+                setIsFlipped(false);
+            };
+
+            const handleNext = () => {
+                if (current < cards.length - 1) {
+                    setIsFlipped(false);
+                    setTimeout(() => setCurrent(c => c + 1), 300);
+                } else {
+                    if (count >= 10 && !earnedBadges.includes('scholar')) {
+                        onUnlockBadge('scholar');
+                    }
+                    onFinish();
+                }
+            };
+
+            if (cards.length === 0) return <div className="text-green-500 font-mono animate-pulse">Loading Data...</div>;
+
+            return (
+                <div className="min-h-screen bg-slate-900/0 flex flex-col items-center justify-center p-4 animate-fade-in relative z-10">
+                    <div className="absolute top-4 left-4">
+                        <button onClick={onExit} className="p-2 rounded-full bg-gray-800 hover:bg-gray-700 text-green-400 border border-green-500/30 transition-colors flex items-center gap-2 px-4 font-medium text-sm backdrop-blur-md shadow-sm">
+                            <Home className="w-4 h-4" /> Home
+                        </button>
+                    </div>
+
+                    <div className="absolute top-4 right-4">
+                         <button onClick={handleShuffle} className="p-2 rounded-full bg-indigo-900/50 hover:bg-indigo-900 text-indigo-300 transition-colors flex items-center gap-2 px-4 font-medium text-sm backdrop-blur-md border border-indigo-500/30">
+                            <Shuffle className="w-4 h-4" /> Shuffle Deck
+                        </button>
+                    </div>
+
+                    <div className="w-full max-w-2xl mb-6 flex justify-center text-white items-center mt-10">
+                        <h2 className="text-xl font-bold flex items-center gap-2 text-green-400 font-mono"><BookOpen className="w-5 h-5"/> Flashcard Review</h2>
+                        <span className="ml-4 bg-gray-800 text-green-500 px-3 py-1 rounded-full text-sm font-mono border border-green-500/30">{current + 1} / {cards.length}</span>
+                    </div>
+
+                    <div className="group perspective w-full max-w-2xl h-96 cursor-pointer mb-8 animate-slide-up" onClick={() => { playSound('click'); setIsFlipped(!isFlipped); }}>
+                        <div className={`relative preserve-3d w-full h-full transition-transform duration-700 ${isFlipped ? 'rotate-y-180' : ''}`}>
+                            <div className="absolute backface-hidden w-full h-full bg-gray-900 rounded-3xl shadow-[0_0_20px_rgba(34,197,94,0.1)] flex flex-col items-center justify-center p-8 border border-green-500/30">
+                                <span className="text-green-600 font-bold tracking-wider uppercase text-sm mb-4 font-mono">Concept</span>
+                                <h3 className="text-4xl font-black text-green-400 text-center font-mono">{cards[current].front}</h3>
+                                <p className="absolute bottom-6 text-green-600 text-sm animate-pulse font-mono">&lt; Click to Decrypt &gt;</p>
+                            </div>
+                            <div className="absolute backface-hidden rotate-y-180 w-full h-full bg-gray-800 rounded-3xl shadow-[0_0_20px_rgba(34,197,94,0.1)] flex flex-col items-center justify-center p-8 border border-green-500/50 text-green-300">
+                                <span className="text-green-500 font-bold tracking-wider uppercase text-sm mb-4 font-mono">Definition</span>
+                                <p className="text-2xl font-medium text-center leading-relaxed font-mono">{cards[current].back}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-4">
+                        <Button variant="secondary" onClick={() => setIsFlipped(!isFlipped)}><RotateCw className="w-5 h-5" /> Flip</Button>
+                        <Button onClick={handleNext}>{current === cards.length - 1 ? "Finish" : "Next"} <ArrowRight className="w-5 h-5" /></Button>
+                    </div>
+                    <VirtualMentor mood="neutral" message="Reviewing documentation earns you the Scholar badge!" />
+                </div>
+            );
+        };
+
+        const Results = ({ score, totalQuestions, xpEarned, history, onRestart, onHome, newBadges }) => {
+            const percentage = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0;
+            const isPassing = percentage >= 60;
+
+            useEffect(() => {
+                if (percentage > 80) playSound('win');
+            }, [percentage]);
+
+            return (
+                <div className="min-h-screen bg-gray-900/0 p-4 flex flex-col items-center py-10 animate-fade-in relative z-10">
+                    {percentage > 80 && <Confetti />}
+                    
+                    <div className="w-full max-w-3xl bg-gray-900/90 backdrop-blur rounded-3xl shadow-2xl overflow-hidden animate-slide-up border border-green-500/30 glow-box">
+                        <div className={`p-8 text-center ${isPassing ? 'bg-gradient-to-b from-gray-900 to-gray-800' : 'bg-gradient-to-b from-gray-900 to-gray-800'}`}>
+                            
+                            <div className="inline-block p-4 rounded-full bg-gray-800 shadow-[0_0_15px_#22c55e] mb-4 border border-green-500/50">
+                                {percentage >= 80 ? <Trophy className="w-16 h-16 text-yellow-400 animate-bounce-slow" /> : 
+                                percentage >= 60 ? <Activity className="w-16 h-16 text-green-500" /> :
+                                <AlertCircle className="w-16 h-16 text-red-500" />}
+                            </div>
+                            
+                            <h1 className="text-4xl font-black text-green-400 mb-2 font-mono glow-text">{percentage >= 80 ? "SYSTEM OPTIMIZED!" : isPassing ? "COMPILATION SUCCESS" : "BUILD FAILED"}</h1>
+                            <div className="flex justify-center items-center gap-4 text-lg mb-6 font-mono">
+                                <span className="bg-gray-800 text-green-400 px-3 py-1 rounded-full font-bold border border-green-500/30">+{xpEarned} XP</span>
+                                <span className="text-gray-400">Score: {score}/{totalQuestions}</span>
+                            </div>
+
+                            {newBadges.length > 0 && (
+                                <div className="mb-6 bg-yellow-900/20 border border-yellow-500/30 p-4 rounded-xl animate-pulse">
+                                    <h3 className="text-yellow-400 font-bold mb-2 flex items-center justify-center gap-2 font-mono"><Star className="w-4 h-4"/> Badges Unlocked!</h3>
+                                    <div className="flex justify-center gap-4">
+                                        {newBadges.map(b => (
+                                            <div key={b.id} className="flex flex-col items-center">
+                                                <div className="text-yellow-400 bg-gray-800 p-2 rounded-full shadow border border-yellow-500/50">{b.icon}</div>
+                                                <span className="text-xs font-bold text-yellow-500 mt-1 font-mono">{b.name}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {history && history.length > 0 && (
+                                <div className="text-left mt-8">
+                                    <h3 className="font-bold text-green-500 mb-4 flex items-center gap-2 font-mono"><FileText className="w-5 h-5"/> Session Logs</h3>
+                                    <div className="space-y-4 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                                        {history.map((item, idx) => (
+                                            <div key={idx} className={`p-4 rounded-xl border-l-4 bg-gray-800 ${item.isCorrect ? 'border-green-500' : 'border-red-500'}`}>
+                                                <div className="flex justify-between">
+                                                    <p className="font-bold text-gray-300 text-sm mb-1 font-mono">Q{idx+1}: {item.question.question}</p>
+                                                    {item.isCorrect && <span className="text-xs font-bold text-green-400 font-mono">+{item.xp} XP</span>}
+                                                </div>
+                                                <div className="text-sm flex flex-col gap-1 font-mono">
+                                                    <span className={`${item.isCorrect ? 'text-green-400' : 'text-red-400'}`}>
+                                                        Input: {item.question.options[item.userAnswer] || "Time Out"}
+                                                    </span>
+                                                    {!item.isCorrect && (
+                                                        <span className="text-green-600 font-medium">
+                                                            Expected: {item.question.options[item.question.correct]}
+                                                        </span>
+                                                    )}
+                                                    <span className="text-gray-500 text-xs italic mt-1 border-t border-gray-700 pt-1">Log: {item.question.rationale}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-6 bg-gray-800 border-t border-gray-700 flex gap-4 justify-center">
+                            <Button onClick={onHome} variant="outline">
+                                <Home className="w-4 h-4" /> Home
+                            </Button>
+                            <Button onClick={onRestart} className="w-full md:w-auto">
+                                Re-Run Sequence
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [gameState, setGameState] = useState('start'); 
+            const [config, setConfig] = useState({ count: 10 });
+            const [sessionData, setSessionData] = useState({ score: 0, xp: 0, total: 0, history: [] });
+            const [notification, setNotification] = useState(null);
+
+            const [userProfile, setUserProfile] = useState(() => {
+                const saved = localStorage.getItem('clsMasteryProfile');
+                return saved ? JSON.parse(saved) : { xp: 0, badges: [] };
+            });
+
+            useEffect(() => {
+                localStorage.setItem('clsMasteryProfile', JSON.stringify(userProfile));
+            }, [userProfile]);
+
+            const unlockBadge = (badgeId) => {
+                if (userProfile.badges.includes(badgeId)) return;
+                setUserProfile(prev => ({ ...prev, xp: prev.xp + 50, badges: [...prev.badges, badgeId] }));
+                setNotification(BADGES.find(b => b.id === badgeId));
+                playSound('badge');
+            };
+
+            const startQuiz = (mode, count) => {
+                playSound('click');
+                setConfig({ count });
+                setGameState(mode);
+            };
+
+            const handleQuizFinish = (finalScore, xpEarned, totalQuestions, historyData) => {
+                setUserProfile(prev => ({ ...prev, xp: prev.xp + xpEarned }));
+                setSessionData({ score: finalScore, xp: xpEarned, total: totalQuestions, history: historyData });
+                setGameState('results');
+            };
+
+            return (
+                <div className="font-mono antialiased text-green-400 min-h-screen relative selection:bg-green-900 selection:text-white">
+                    <InteractiveBackground />
+                    {notification && <BadgeNotification badge={notification} onClose={() => setNotification(null)} />}
+                    
+                    {gameState === 'start' && <StartScreen onStart={startQuiz} userProfile={userProfile} badges={userProfile.badges} />}
+                    {gameState === 'quiz' && <QuizGame count={config.count} onFinish={handleQuizFinish} onExit={() => setGameState('start')} onUnlockBadge={unlockBadge} earnedBadges={userProfile.badges} />}
+                    {gameState === 'flashcards' && <Flashcards count={config.count} onFinish={() => setGameState('start')} onExit={() => setGameState('start')} onUnlockBadge={unlockBadge} earnedBadges={userProfile.badges} />}
+                    {gameState === 'results' && <Results score={sessionData.score} xpEarned={sessionData.xp} totalQuestions={sessionData.total} history={sessionData.history} onRestart={() => setGameState('start')} onHome={() => setGameState('start')} newBadges={[]} />}
+                </div>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
